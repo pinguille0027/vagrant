@@ -1,0 +1,25 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+    config.vm.box = "debian/contrib-buster64"
+    # WEB
+    (1..3).each do |i|
+        config.vm.define "Maquina#{i}" do |node|
+            node.vm.hostname = "Maquina#{i}"
+            node.vm.network "private_network", ip: "192.168.56.2#{i}", netmask: "255.255.255.0"
+            node.vm.synced_folder "./www#{i}", "/var/www/html"
+            node.vm.provision "shell", inline: "echo Procesando maquina #{i}"
+            node.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
+            config.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
+            config.vm.provision "shell", path: "apache2.sh"
+            node.vm.provider "virtualbox" do |vb|
+                vb.name = "Maquina#{i}"
+                vb.memory = "1024"
+                vb.cpus = 1
+                vb.linked_clone = true
+                vb.customize ["modifyvm", :id, "--groups", "/Cluster"]
+            end
+        end
+    end
+end

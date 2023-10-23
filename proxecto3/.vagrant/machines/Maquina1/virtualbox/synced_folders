@@ -1,0 +1,1 @@
+{"virtualbox":{"/var/www/html":{"guestpath":"/var/www/html","hostpath":"/home/a22guillermoof/Vagrant/proxecto3/www1","disabled":false,"__vagrantfile":true},"/vagrant":{"guestpath":"/vagrant","hostpath":"/home/a22guillermoof/Vagrant/proxecto3","disabled":false,"__vagrantfile":true}}}
