@@ -17,13 +17,14 @@ Vagrant.configure("2") do |config|
 	router.vm.hostname = "R-INT"
 	
 
-	router.vm.network "public_network", bridge: "eth1", auto_config: false 
-	router.vm.network "private_network", ip: "172.16.1.1", netmask: "255.255.255.0", virtualbox__intnet: "E-ATP-CACHER-LAN"
+	router.vm.network "public_network", bridge: "enp2s0", auto_config: false 
+	router.vm.network "private_network", ip: "172.16.1.1", netmask: "255.255.255.0", virtualbox__intnet: "E-APT-CACHER-LAN"
 	
 	router.vm.provider "virtualbox" do |vb|
 		vb.name="Router"
 		vb.memory = "756"
 	end
+	
 	
 	router.vm.provision "shell", name: "configura o interface bridge", path: "configura-bridge.sh", run: "always"
 	router.vm.provision "shell", name: "cambia a porta de enlace", path: "cambia-default-route.sh", run: "always"
@@ -32,9 +33,23 @@ Vagrant.configure("2") do |config|
 	
 	#### NFTABLES
 	router.vm.provision "shell", name: "copia e carga as regras nftables", inline: "cp /vagrant/nftables.conf /etc && /etc/nftables.conf", run: "always"
-	
-	
   end
+  # APT-cacher
+  config.vm.define "APT-Cacher" do |aptcacher|	
+	aptcacher.vm.box = "debian/bookworm64"
+	aptcacher.vm.hostname = "APT-Cacher"
+  
 
+	aptcacher.vm.network "private_network", ip: "172.16.1.2", netmask: "255.255.255.0", virtualbox__intnet: "E-APT-CACHER-LAN"
+  
+	aptcacher.vm.provider "virtualbox" do |vb|
+	  vb.name="apt-cacher"
+	  vb.memory = "756"
+  end
+  
+  aptcacher.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+  
+  
+	end
 
 end
