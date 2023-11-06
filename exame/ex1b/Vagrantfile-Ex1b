@@ -1,0 +1,22 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+ 
+  config.vm.define "HAPROXY" do |haproxy|
+          
+    haproxy.vm.hostname = "haproxy"
+     
+    haproxy.vm.provider "virtualbox" do |vb|
+        
+        # vb.gui = true
+        vb.name="haproxy"
+        vb.memory="2048"
+	      vb.cpus= 2       
+        vb.linked_clone = true
+        
+    end
+  
+  end    
+  
+end

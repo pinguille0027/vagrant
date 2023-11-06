@@ -1,0 +1,1 @@
+El proxy hace balanceo de carga distribuyendo las llamadas entre los cuatro apaches.

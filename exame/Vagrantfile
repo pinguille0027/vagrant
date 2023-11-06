@@ -1,0 +1,41 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+ 
+  config.vm.define "HAPROXY" do |haproxy|
+          
+    haproxy.vm.hostname = "haproxy"
+     
+    haproxy.vm.provider "virtualbox" do |vb|
+        
+        # vb.gui = true
+        vb.name="haproxy"
+        vb.memory="2048"
+	      vb.cpus= 2       
+        vb.linked_clone = true
+        
+    end
+    haproxy.vm.network "public_network", bridge: "enp2s0", auto_config: true
+    haproxy.vm.network "private_network", ip: "172.16.1.30", netmask: "255.255.255.0", virtualbox__intnet: "Exame-LAN"
+    haproxy.vm.provision "shell", name: "configura o interface bridge", path: "./enunciado/haproxy.bash"
+    #la ruta está puesta como si el Vagrantfile estuviera en la carpeta exame y no en la ex1d
+    #hice un pequeño cambio en las rutas del script para que coja el cfg
+  end    
+  (1..4).each do |i|
+    config.vm.define "Maquina#{i}" do |node|
+        node.vm.hostname = "Maquina#{i}"
+        node.vm.network "private_network", ip: "172.16.1.10#{i}", netmask: "255.255.255.0", virtualbox__intnet: "Exame-LAN"
+        node.vm.provision "shell", inline: "echo Procesando maquina #{i}"
+        node.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
+        node.vm.provision "shell", inline: "echo install; apt update; apt install apache2 -y"
+        node.vm.provision "shell", inline: "touch /var/www/html/index.html && echo Servidor#{i} >/var/www/html/index.html"
+        node.vm.provider "virtualbox" do |vb|
+            vb.name = "Maquina#{i}"
+            vb.memory = "1024"
+            vb.cpus = 1
+            vb.linked_clone = true
+        end
+    end
+end
+end
