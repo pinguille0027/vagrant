@@ -48,6 +48,8 @@ Vagrant.configure("2") do |config|
   end
   
   aptcacher.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+  aptcacher.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
+  aptcacher.vm.provision "shell", path: "instalacion-cacher.sh"
   
   
 	end
