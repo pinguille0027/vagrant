@@ -1,6 +1,14 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
+maquinas = [
 
+    { nome: "ServidorWeb", id: 1 , software:"apache2"},
+
+    { nome: "BaseDeDatos", id: 2, software:"mysql-server mysql-common mysql-client" },
+
+    { nome: "Destktop", id: 3, software:"gnome" }
+
+]
 Vagrant.configure("2") do |config|
   config.vm.box = "debian/bookworm64"
   config.vm.provider "virtualbox" do |vb|
@@ -22,7 +30,6 @@ Vagrant.configure("2") do |config|
 	
 	router.vm.provider "virtualbox" do |vb|
 		vb.name="Router"
-		vb.memory = "756"
 	end
 	
 	
@@ -44,14 +51,30 @@ Vagrant.configure("2") do |config|
   
 	aptcacher.vm.provider "virtualbox" do |vb|
 	  vb.name="apt-cacher"
-	  vb.memory = "756"
-  end
+	end
   
   aptcacher.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
   aptcacher.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
+  #añadí el cacher del instituto porque sin el la maquina no me hacia fetch a los repositorios de debian y no me dejaba instalar nada.
   aptcacher.vm.provision "shell", path: "instalacion-cacher.sh"
   
-  
-	end
+  end
+	maquinas.each do |maquina|
+
+        config.vm.define "#{maquina[:nome]}" do |node|
+			node.vm.box = "debian/bookworm64"
+            node.vm.hostname = "#{maquina[:nome]}"
+
+            node.vm.network "private_network", ip: "172.16.1.10#{maquina[:id]}", netmask: "255.255.255.0", virtualbox__intnet: "E-APT-CACHER-LAN"
+			node.vm.provider "virtualbox" do |vb|
+				vb.name="#{maquina[:nome]}"
+			end
+           node.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+		   node.vm.provision "shell", inline:"cp /vagrant/01-apt-proxy.conf /etc/apt/apt.conf.d/"
+		   node.vm.provision "shell", inline:"cat /vagrant/sources.txt > /etc/apt/sources.list"
+		   node.vm.provision "shell", inline:"apt update && apt install #{maquina[:software]} -y"
+
+        end
+    end
 
 end
