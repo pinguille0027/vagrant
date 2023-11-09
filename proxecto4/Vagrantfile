@@ -3,8 +3,8 @@
 maquinas = [
 
     { nome: "ServidorWeb", id: 1 , software:"apache2"},
-
-    { nome: "BaseDeDatos", id: 2, software:"mysql-server mysql-common mysql-client" },
+	#meti postgresql porque para mysql tendría que añadir y validar los repositorios oficiales lo que sería una lata
+    { nome: "BaseDeDatos", id: 2, software:"postgresql postgresql-contrib" },
 
     { nome: "Destktop", id: 3, software:"gnome" }
 
@@ -20,7 +20,7 @@ Vagrant.configure("2") do |config|
 
   config.vm.box_check_update = false
   # R-INT
-  config.vm.define "ROUTER" do |router|	
+  config.vm.define "ROUTER-APT" do |router|	
   	router.vm.box = "debian/bookworm64"
 	router.vm.hostname = "R-INT"
 	
@@ -29,7 +29,7 @@ Vagrant.configure("2") do |config|
 	router.vm.network "private_network", ip: "172.16.1.1", netmask: "255.255.255.0", virtualbox__intnet: "E-APT-CACHER-LAN"
 	
 	router.vm.provider "virtualbox" do |vb|
-		vb.name="Router"
+		vb.name="Router-APT"
 	end
 	
 	
@@ -53,10 +53,8 @@ Vagrant.configure("2") do |config|
 	  vb.name="apt-cacher"
 	end
   
-  aptcacher.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
-  aptcacher.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
-  #añadí el cacher del instituto porque sin el la maquina no me hacia fetch a los repositorios de debian y no me dejaba instalar nada.
-  aptcacher.vm.provision "shell", path: "instalacion-cacher.sh"
+  aptcacher.vm.provision "shell",name: "cambia a porta de enlace", path: "cambia-default-route-LAN.sh", run: "always"
+  aptcacher.vm.provision "shell",name: "instalando cacher", path: "instalacion-cacher.sh"
   
   end
 	maquinas.each do |maquina|
@@ -69,11 +67,10 @@ Vagrant.configure("2") do |config|
 			node.vm.provider "virtualbox" do |vb|
 				vb.name="#{maquina[:nome]}"
 			end
-           node.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
-		   node.vm.provision "shell", inline:"cp /vagrant/01-apt-proxy.conf /etc/apt/apt.conf.d/"
-		   node.vm.provision "shell", inline:"cat /vagrant/sources.txt > /etc/apt/sources.list"
-		   node.vm.provision "shell", inline:"apt update && apt install #{maquina[:software]} -y"
-
+           node.vm.provision "shell", name: "cambia a porta de enlace", path: "cambia-default-route-LAN.sh", run: "always"
+		   node.vm.provision "shell", name: "redireccionar ó cacher", inline:"cp /vagrant/01-apt-proxy.conf /etc/apt/apt.conf.d/"
+		   node.vm.provision "shell", name: "modificando sources a http",inline:"cat /vagrant/sources.txt > /etc/apt/sources.list"
+		   node.vm.provision "shell", name: "instalando software", inline:"apt update && apt upgrade && apt install #{maquina[:software]} -y"
         end
     end
 
