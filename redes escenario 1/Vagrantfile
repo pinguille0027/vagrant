@@ -1,12 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
-lan1 = [
 
-    { nome: "ServidorWebSRI", id: 1 , software:"apache2"},
-
-    { nome: "DNS", id: 2, software:"bind9" },
-
-]
 Vagrant.configure("2") do |config|
     config.vm.box = "debian/bullseye64"
     config.vm.box = "ubuntu/focal64"
@@ -23,7 +17,7 @@ Vagrant.configure("2") do |config|
   	router.vm.box = "debian/bullseye64"
 	router.vm.hostname = "R-INT"
 	
-	#router.vm.network "public_network", bridge: "eth0", auto_config: false 
+	router.vm.network "public_network", bridge: "eth1", auto_config: true
 	router.vm.network "private_network", ip: "172.16.1.1", netmask: "255.255.255.0", virtualbox__intnet: "UFW-LAN-1"
 	
 	router.vm.provider "virtualbox" do |vb|
@@ -31,6 +25,7 @@ Vagrant.configure("2") do |config|
 	end
 	
 	router.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
+	router.vm.provision "shell", name: "cambia a porta de enlace", path: "cambia-default-route.sh", run: "always"
 	router.vm.provision "shell", name: "converte a máquina nun router", path: "ufw.sh"
 	router.vm.provision "shell",name: "instalando DNS", path: "instalacion-dns.sh"
 	router.vm.provision "shell",name: "instalando DHCP", path: "instalacion-dhcp.sh"

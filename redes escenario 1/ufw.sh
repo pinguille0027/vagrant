@@ -21,7 +21,7 @@ cat <<EOL | sudo tee -a /etc/ufw/before.rules
 :POSTROUTING ACCEPT [0:0]
 
 # Allow traffic from internal network to external network
--A POSTROUTING -s 172.16.1.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 172.16.1.0/24 -o eth1 -j MASQUERADE
 
 # End NAT table rules
 COMMIT
