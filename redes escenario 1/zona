@@ -1,0 +1,14 @@
+$TTL    604800
+@       IN      SOA     ns1.gofasir.com. admin.gofasir.com. (
+                        2023101501  ; Serial
+                        28800   ; Refresh
+                        7200    ; Retry
+                        604800  ; Expire
+                        86400 ) ; Negative Cache TTL
+
+@       IN      NS      ns1.gofasir.com.
+
+ns1      IN      A       172.16.1.1
+router1     IN      A       172.16.1.1
+router2     IN      A       172.16.1.2
+web     IN     A        172.16.1.10 
