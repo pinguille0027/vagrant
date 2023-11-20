@@ -10,5 +10,5 @@ $TTL    604800
 
 ns1      IN      A       172.16.1.1
 router1     IN      A       172.16.1.1
-router2     IN      A       172.16.1.2
+router2     IN      A       172.16.1.21
 web     IN     A        172.16.1.10 
