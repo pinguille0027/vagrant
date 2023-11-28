@@ -1,0 +1,41 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+    config.vm.box = "kalilinux/rolling"
+    config.vm.provider "virtualbox" do |vb|
+        vb.memory="2048"
+        vb.cpus= 2
+        vb.linked_clone = true
+        vb.customize ["modifyvm", :id, "--groups", "/Kali"]
+    end
+      config.vm.define "kali" do |kali|	
+        kali.vm.box = "kalilinux/rolling"
+        kali.vm.hostname = "R-INT"
+      
+        kali.vm.network "private_network", ip: "172.16.1.20", netmask: "255.255.255.0", virtualbox__intnet: "kali"
+      
+        kali.vm.provider "virtualbox" do |vb|
+          vb.name="kali"
+      end
+  end
+  (1..2).each do |i|
+    config.vm.define "telnet-ubuntu#{i}" do |ubuntu|
+      ubuntu.vm.box = "ubuntu/focal64"
+      ubuntu.vm.hostname = "telnet-ubuntu#{i}"
+    
+      
+      ubuntu.vm.network "private_network", ip: "172.16.1.10#{i}", netmask: "255.255.255.0", virtualbox__intnet: "kali"
+    
+      ubuntu.vm.provision "shell", inline: "echo Procesando maquina"
+      ubuntu.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
+      ubuntu.vm.provision "shell", inline: "apt update && apt install net-tools telnetd -y"
+      ubuntu.vm.provider "virtualbox" do |vb|
+        vb.name = "telnet-ubuntu#{i}"
+        vb.memory = "1024"
+        vb.cpus = 1
+        vb.linked_clone = true
+        #vb.gui = true
+      end
+    end
+  end
+end
