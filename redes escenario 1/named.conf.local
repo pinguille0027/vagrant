@@ -1,0 +1,12 @@
+zone "gofasir.com" {
+    type master;
+    file "/etc/bind/gofasir.com";
+};
+zone "tienda1.com" {
+    type master;
+    file "/etc/bind/tienda1.com";
+};
+zone "tienda2.com" {
+    type master;
+    file "/etc/bind/tienda2.com";
+};
