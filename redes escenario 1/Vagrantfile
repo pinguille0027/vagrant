@@ -26,10 +26,10 @@ Vagrant.configure("2") do |config|
 	end
 	
 	router.vm.provision "shell", inline: "cp /vagrant/01apt-cacher-ng /etc/apt/apt.conf.d/"
-	router.vm.provision "shell", name: "cambia a porta de enlace", path: "cambia-default-route.sh", run: "always"
+	router.vm.provision "shell", name: "cambia a porta de enlace", path: "netconfig/cambia-default-route.sh", run: "always"
 	router.vm.provision "shell", name: "converte a máquina nun router", path: "ufw.sh"
-	router.vm.provision "shell",name: "instalando DNS", path: "instalacion-dns.sh"
-	router.vm.provision "shell",name: "instalando DHCP", path: "instalacion-dhcp.sh"
+	router.vm.provision "shell",name: "instalando DNS", path: "dns/instalacion-dns.sh"
+	router.vm.provision "shell",name: "instalando DHCP", path: "dhcp/instalacion-dhcp.sh"
 	router.vm.provision "shell", inline: "systemctl status isc-dhcp-server", run: "always"
 	#hay que reiniciar la maquina para que arranque el dhcp. y hay que poner el enable del ufw manualmente
 
@@ -44,10 +44,10 @@ Vagrant.configure("2") do |config|
 	web.vm.provision "shell", inline: "echo Procesando maquina"
 	web.vm.provision "shell", inline: "cat /vagrant/vips >> /etc/network/interfaces"
 	web.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a", run: "always"
-	web.vm.provision "shell", inline: "cat /vagrant/resolv > /etc/resolv.conf", run: "always"
+	web.vm.provision "shell", inline: "cat /vagrant/dns/resolv > /etc/resolv.conf", run: "always"
 	web.vm.provision "shell", inline: "echo install; apt update; apt install apache2 -y"
 	web.vm.provision "shell", inline:"cp /vagrant/apache/www.tienda1.com.conf /etc/apache2/sites-available"
-	web.vm.provision "shell",name: "cambia a porta de enlace", path: "cambia-default-route-LAN.sh", run: "always"
+	web.vm.provision "shell",name: "cambia a porta de enlace", path: "netconfig/cambia-default-route-LAN.sh", run: "always"
 	web.vm.provision "shell",name: "habilitar sitios", inline: "a2ensite www.tienda1.com.conf && systemctl restart apache2"
 	web.vm.synced_folder "./www", "/var/www"
 	web.vm.provider "virtualbox" do |vb|
@@ -67,8 +67,8 @@ end
 
 	ubuntu.vm.provision "shell", inline: "echo Procesando maquina"
 	ubuntu.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
-	ubuntu.vm.provision "shell", inline: "cat /vagrant/resolv > /etc/resolv.conf", run: "always"
-	ubuntu.vm.provision "shell",name: "cambia a porta de enlace", path: "cambia-default-route-ubuntu.sh", run: "always"
+	ubuntu.vm.provision "shell", inline: "cat /vagrant/dns/resolv > /etc/resolv.conf", run: "always"
+	ubuntu.vm.provision "shell",name: "cambia a porta de enlace", path: "netconfig/cambia-default-route-ubuntu.sh", run: "always"
 
 	ubuntu.vm.provider "virtualbox" do |vb|
 	  vb.name = "ubuntu"
@@ -87,8 +87,8 @@ config.vm.define "ubuntu2" do |ubuntu2|
 
 	ubuntu2.vm.provision "shell", inline: "echo Procesando maquina"
 	ubuntu2.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
-	ubuntu2.vm.provision "shell", inline: "cat /vagrant/resolv2 > /etc/resolv.conf", run: "always"
-	ubuntu2.vm.provision "shell",name: "cambia a porta de enlace", path: "cambia-default-route-ubuntu2.sh", run: "always"
+	ubuntu2.vm.provision "shell", inline: "cat /vagrant/dns/resolv2 > /etc/resolv.conf", run: "always"
+	ubuntu2.vm.provision "shell",name: "cambia a porta de enlace", path: "netconfig/cambia-default-route-ubuntu2.sh", run: "always"
 
 	ubuntu2.vm.provider "virtualbox" do |vb|
 	  vb.name = "ubuntu2"
