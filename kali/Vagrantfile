@@ -28,7 +28,7 @@ Vagrant.configure("2") do |config|
     
       ubuntu.vm.provision "shell", inline: "echo Procesando maquina"
       ubuntu.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a"
-      ubuntu.vm.provision "shell", inline: "apt update && apt install net-tools telnetd -y"
+      ubuntu.vm.provision "shell", inline: "apt update && apt upgrade -y && apt install net-tools telnetd openssh-server -y"
       ubuntu.vm.provider "virtualbox" do |vb|
         vb.name = "telnet-ubuntu#{i}"
         vb.memory = "1024"

@@ -1,0 +1,40 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+    config.vm.box = "debian/bullseye64"
+    config.vm.box = "ubuntu/focal64"
+    config.vm.provider "virtualbox" do |vb|
+      vb.memory="2048"
+      vb.cpus= 2
+      vb.linked_clone = true
+	  vb.customize ["modifyvm", :id, "--groups", "/Apache"]
+    end
+
+  config.vm.box_check_update = false
+  
+  config.vm.define "webguille" do |web|
+	web.vm.box = "debian/bullseye64"
+	web.vm.hostname = "webguille"
+
+	web.vm.network "private_network", ip: "192.168.56.10"
+
+	web.vm.provision "shell", inline: "echo Procesando maquina"
+	web.vm.provision "shell", inline: "echo Monstrando a configuracion ip: && ip a", run: "always"
+	web.vm.provision "shell", inline: "echo install; apt update; apt install apache2 -y"
+	web.vm.provision "shell", inline: "cat /vagrant/apache/ports.conf > /etc/apache2/ports.conf", run: "always"
+	config.vm.synced_folder "./sites-available", "/etc/apache2/sites-available/"
+
+	#web.vm.provision "shell",name: "habilitar sitios", inline: "a2ensite www.tienda1.com.conf && systemctl restart apache2"
+	web.vm.synced_folder "./www", "/var/www"
+
+	#web.vm.provision "shell",name: "cambia a porta de enlace", path: "netconfig/cambia-default-route-LAN.sh", run: "always"
+	web.vm.synced_folder "./www", "/var/www"
+	web.vm.provider "virtualbox" do |vb|
+	  vb.name = "webguille"
+	  vb.memory = "2048"
+	  vb.cpus = 2
+	  vb.linked_clone = true
+  end
+end
+end
