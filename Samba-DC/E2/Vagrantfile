@@ -1,0 +1,78 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+ # config.vm.box = "debian/contrib-buster64"
+  config.vm.box = "debian/bookworm64"
+  config.vm.provider "virtualbox" do |vb|
+	vb.memory="1024"
+	vb.cpus= 1
+	vb.linked_clone = true
+	vb.customize ["modifyvm", :id, "--groups", "/E2"]
+  end
+  config.vm.provision "ansible" do |ansible|
+    ansible.verbose = "v"
+    ansible.playbook = "playbook.yml"
+  end 
+  config.vm.provision "shell", name: "cambiando a zona horaria", inline: "timedatectl set-timezone Europe/Madrid"  
+  # E2-R-INT
+  config.vm.define "E2RINT" do |e2rint|	
+	e2rint.vm.hostname = "E2-R-INT"
+	
+	e2rint.vm.network "public_network", bridge: "enp2s0", auto_config: false 
+	e2rint.vm.network "private_network", ip: "172.16.1.1", netmask: "255.255.255.0", virtualbox__intnet: "E2-LAN"
+	
+	e2rint.vm.provider "virtualbox" do |vb|
+		vb.name="E2-R-INT"
+		vb.memory = "756"
+	end
+	
+ 	e2rint.vm.provision "shell", name: "configura o interface bridge", path: "configura-bridge.sh", run: "always"
+        e2rint.vm.provision "shell", name: "cambia a porta de enlace", path: "cambia-default-route.sh", run: "always"
+
+        e2rint.vm.provision "shell", name: "converte a máquina nun router", inline: "sysctl -w net.ipv4.ip_forward=1", run: "always"
+
+        #### IPTABLES
+        #e2rint.vm.provision "shell", name: "instala iptables", inline: "apt update && apt install iptables -y"
+        #e2rint.vm.provision "shell", name: "instala o ulog2 para facer log do firewall", inline: "apt install ulogd2 -y"
+        #e2vagarint.vm.provision "shell", name: "carga as regras iptables", path: "iptables.sh", run: "always"
+        #### NFTABLES
+        
+        e2rint.vm.provision "shell", name: "copia e carga as regras nftables", inline: "cp /vagrant/nftables.conf /etc && /etc/nftables.conf", run: "always"
+  end
+
+
+  # E2-XDC01
+  config.vm.define "E2XDC01" do |e2xdc01|
+	# E2XDC01.vm.box = "ubuntu/xenial64"
+	e2xdc01.vm.hostname = "E2-XDC-01"
+	e2xdc01.vm.network "private_network", ip: "172.16.1.100", netmask: "255.255.255.0", virtualbox__intnet: "E2-LAN"
+	e2xdc01.vm.provision "shell",  name: "instala e configura dhcp", path: "dhcp.sh"
+	e2xdc01.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+	e2xdc01.vm.provider "virtualbox" do |vb|
+		vb.name="E2-XDC-01"
+		vb.cpus= 2
+	end
+  end
+  # E2-XDC02
+  config.vm.define "E2XDC02" do |e2xdc02|
+	# E2XDC01.vm.box = "ubuntu/xenial64"
+	e2xdc02.vm.hostname = "E2-XDC-02"
+	e2xdc02.vm.network "private_network", ip: "172.16.1.101", netmask: "255.255.255.0", virtualbox__intnet: "E2-LAN"
+	e2xdc02.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+	e2xdc02.vm.provider "virtualbox" do |vb|
+		vb.name="E2-XDC-02"
+		vb.cpus= 2
+	end
+  end
+ 
+  config.vm.define "E2XFS01" do |e2xfs01|
+	# E2XDC01.vm.box = "ubuntu/xenial64"
+	e2xfs01.vm.hostname = "E2-XFS-01"
+	e2xfs01.vm.network "private_network", ip: "172.16.1.110", netmask: "255.255.255.0", virtualbox__intnet: "E2-LAN"
+	e2xfs01.vm.provision "shell", path: "cambia-default-route-LAN.sh", run: "always"
+	e2xfs01.vm.provider "virtualbox" do |vb|
+		vb.name="E2-XFS-01"
+	end
+  end
+end

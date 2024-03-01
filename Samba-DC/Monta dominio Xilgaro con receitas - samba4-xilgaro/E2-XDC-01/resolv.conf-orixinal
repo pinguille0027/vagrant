@@ -1,0 +1,3 @@
+#nameserver 10.180.188.43
+#nameserver 10.180.188.75
+nameserver 8.8.8.8

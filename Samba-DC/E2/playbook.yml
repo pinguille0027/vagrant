@@ -1,0 +1,8 @@
+---
+- name: Test
+  hosts: all
+  remote_user: root
+
+  tasks:
+  - name: Probando quen esta encendido
+    ansible.builtin.ping:

@@ -1,0 +1,12 @@
+service rsync
+{
+   disable         = no
+   only_from       = 172.16.1.101/32   
+   socket_type     = stream
+   wait            = no
+   user            = root
+   server          = /usr/bin/rsync
+   server_args     = --daemon
+   log_on_failure += USERID
+}
+

@@ -1,0 +1,594 @@
+################ TAREFAS COMUNS DE E2-XDC-01 e E2-XDC-02
+- hosts: E2XDC01,E2XDC02
+  become: yes
+  tasks:
+    - name: copia resolv.conf-orixinal
+      copy:
+        src: ./E2-XDC-01/resolv.conf-orixinal
+        dest: /etc/resolv.conf
+    - name: copia-hosts
+      copy:
+        src: ./E2-XDC-01/hosts
+        dest: /etc/hosts
+        owner: root
+        group: root
+    - name: instala software
+      apt:
+        pkg:
+          - acl 
+          - attr
+          - samba 
+          - samba-dsdb-modules 
+          - samba-vfs-modules
+          - winbind 
+          - libpam-winbind
+          - libnss-winbind 
+          - libpam-krb5 
+          - krb5-config 
+          - krb5-user
+          - dnsutils
+          - smbclient
+          - chrony
+          - rsync
+          - ldap-utils
+        update_cache: yes
+        
+################ INSTALACION DO ROL EN E2-XDC-01
+- hosts: E2XDC01
+  become: yes
+  tasks:
+    ### Ollo, editar este arquivo coa interface que está na rede aulas
+    - name: instala software isc-dhdcp-server e xnintd
+      apt:
+        pkg:
+          - isc-dhcp-server
+          - xinetd
+
+    - name: copia isc-dhcp-server
+      copy:
+        src: ./E2-XDC-01/isc-dhcp-server
+        dest: /etc/default/
+    - name: copia os arquivos do dhcp
+      copy: 
+        src: "{{ item }}"
+        dest: /etc/dhcp/
+      with_items:
+        - ./E2-XDC-01/dhcpd.conf  
+    - name: reincia servizo dhcp
+      systemd:
+        state: restarted
+        name: isc-dhcp-server
+    - name: chequea se xa esta instalado o rol
+      shell: grep -c "server role = active directory domain controller" /etc/samba/smb.conf || true
+      register: test_samba_instalado
+    - name: eliman smb.cof
+      file:
+        path: /etc/samba/smb.conf
+        state: absent     
+      when: test_samba_instalado.stdout == "0"
+    - name: executa samba aprovisionamento
+      command: samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=XILGARO.LOCAL --domain=xilgaro --adminpass=abc123. --option="interfaces=lo eth1" --option="bind interfaces only=yes" 
+      register: provision
+      when: test_samba_instalado.stdout == "0"
+    - name: mostra por pantalla a saida do aprovisionamento
+      debug: var=provision.stderr_lines
+      when: test_samba_instalado.stdout == "0"
+
+# Rempraza samba
+    - name: copia smb.conf
+      copy:
+        src: ./E2-XDC-01/smb.conf
+        dest: /etc/samba/smb.conf
+    - name: reempraza o resolv.conf en E2-XDC-01
+      copy:
+        src: ./E2-XDC-01/samba-resolv.conf
+        dest: /etc/resolv.conf
+    - name: reempraza o krb5.conf polo xerado por samba
+      copy:
+        src: /var/lib/samba/private/krb5.conf 
+        dest: /etc
+        remote_src: yes
+
+    - name: para o servizos
+      systemd:
+        state: stopped
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: desabilita o servizos
+      systemd:
+        enabled: false
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: enmascara  o servizos
+      systemd:
+        masked: true
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: desenmascara o servizo samba-ad-dc
+      systemd:
+        masked: false
+        name: samba-ad-dc
+    - name: habilita o servizos samba-ad-dc
+      systemd:
+        enabled: true
+        name: samba-ad-dc
+
+    - name: reinicia os servizos samba-ad-dc
+      systemd:
+        state: restarted
+        name: samba-ad-dc
+
+    - name: espera uns segs
+      wait_for:
+        timeout: 10
+    - name: testing file server autenticaicón anonima
+      command: smbclient -L localhost -N
+      register: smbclient
+    - name: mostra por pantalla o smbclient
+      debug: var=smbclient.stdout_lines
+    - name: testing file server autenticaicón de administrator. Ojo que va la password aqui
+      command: smbclient   //localhost/netlogon -UAdministrator -password abc123. -c 'ls'
+      register: smbclient
+    - name: mostra por pantalla o smbclient
+      debug: var=smbclient.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t SRV _ldap._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resutlado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t SRV _kerberos._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t A E2-XDC-01.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+
+
+    - name: Comprobacion kerberos Ollo vai o password
+      shell: echo 'abc123.' |  kinit administrator
+    - name: Comprobacion klist
+      command: klist 
+      register: klist
+    - name: Lista o resultado de klist
+      debug: var=klist.stdout_lines
+
+    - name: Accepta peticions winbind
+      copy:
+        src: ./E2-XDC-01/nsswitch.conf
+        dest: /etc
+    - name: Comprobacion Winbind
+      command: getent passwd administrator
+      register: getent
+    - name: Lista o resultado de getent passwd administrator
+      debug: var=getent.stdout_lines
+
+
+    - name: permisos chrony
+      file:
+        path: /var/lib/samba/ntp_signd
+        owner: root
+        group: _chrony
+    - name: copia config chrony
+      copy:
+        src: ./E2-XDC-01/chrony.conf 
+        dest: /etc/chrony/
+    - name: renicia chrony
+      systemd:
+        state: restarted
+        name: chrony
+    - name: comproba se xa esta intrudocido o allow dns updaes E2-XDC-02
+      shell: grep -c "^allow dns updates = signed" /etc/samba/smb.conf || true
+      register: test_dnsupdates
+    - name: allow dns updates y ldaps smb.conf
+      lineinfile:
+        dest: /etc/samba/smb.conf
+        line:  "{{ item }}"
+        insertafter: 'dns forwarder'
+      with_items:
+        - 'allow dns updates = signed'
+        - 'tls enabled  = yes'
+        - 'tls keyfile  = tls/key.pem'
+        - 'tls certfile = tls/cert.pem'
+        - 'tls cafile   ='
+      when: test_dnsupdates.stdout == "0"
+      
+    - name: reinicia os servizos samba-ad-dc
+      systemd:
+        state: restarted
+        name: samba-ad-dc
+
+# Configura rsync para aceptar la sincronización de sysvol             
+    - name: crea o servizo rsync
+      copy:
+        src: ./E2-XDC-01/rsync
+        dest: /etc/xinetd.d/rsync
+    - name: arquivo de configuracion do servizo rsync
+      copy:
+        src: ./E2-XDC-01/rsyncd.conf
+        dest: /etc/rsyncd.conf
+    - name: crea o arquivo coa password de acceso rsync
+      copy: 
+       src: ./E2-XDC-01/rsyncd.secret
+       dest: /etc/samba/rsyncd.secret
+       mode: '0400'
+    - name: reinicia os servizos samba-ad-dc
+      systemd:
+        state: restarted
+        name: xinetd      	
+    - name: crea o backup de idmap
+      shell: tdbbackup -s .bak /var/lib/samba/private/idmap.ldb
+    - name: trae a copia ao master
+      fetch:
+        src: /var/lib/samba/private/idmap.ldb.bak
+        dest: ./idmap.ldb.bak
+        flat: yes
+# Busqueda directa
+    - name: crea entradas en directa
+      shell: samba-tool dns add E2-XDC-01.xilgaro.local xilgaro.local "{{ item.name }}" A 172.16.1."{{item.ip}}"   -U Administrator --password=abc123.
+      register: crea_entradas_en_directa
+      failed_when: "crea_entradas_en_directa.rc != 0 and crea_entradas_en_directa.rc != 255" 
+      with_items:
+        - { ip: '110', name: 'XFS-01' }
+
+# Zonas INVERSAS
+
+
+    - name: zonaInversa
+      shell: samba-tool dns zonecreate 172.16.1.100 "{{ item }}".16.172.in-addr.arpa -U Administrator --password=abc123.
+      register: zonaInversa
+      failed_when: "zonaInversa.rc != 0 and zonaInversa.rc != 255" 
+      with_items:
+        - 1
+      
+
+
+
+    - name: crea entradas en inversa
+      shell: samba-tool dns add 172.16.1.100 1.16.172.in-addr.arpa "{{ item.ip }}" PTR "{{ item.name }}".xilgaro.local -U Administrator --password=abc123.
+      register: crea_entradas_en_inversa
+      failed_when: "crea_entradas_en_inversa.rc != 0 and crea_entradas_en_inversa.rc != 255" 
+      with_items:
+        - { ip: '100', name: 'E2-XDC-01' }
+        - { ip: '101', name: 'E2-XDC-02' }
+        - { ip: '120', name: 'XFS-01' }
+      
+    - name: Lista o resultado de zonaInversa
+      debug: var=crea_entradas_en_inversa.stdout_lines      
+
+        #    - name: crea E2-XDC-02 en inversa
+        # shell: samba-tool dns add 192.168.10.10 10.168.192.in-addr.arpa 11 PTR E2-XDC-02.xilgaro.local -U Administrator --password=abc123.
+        # register: E2-XDC-02_dns
+        #- name: Lista o resultado de zonaInversa
+        # debug: var=E2-XDC-02_dns.stdout_lines      
+
+
+#Asigna GID aos todos os usuarios
+#    - name: Obten a lista de grupos
+#      shell: samba-tool group list | sort
+#      register: lista_grupos
+#    - name: Lista os grupos
+#      debug: var=lista_grupos.stdout_lines
+#    - name: Cambia guid a domain users
+#      shell: samba-tool group addunixattrs  "{{ item }}" "{{ gid+10000 }}"
+#      loop: "{{ lista_grupos.stdout_lines }}"
+#      loop_control:
+#        index_var: gid
+    
+
+
+
+    - name: Asigna GID a grupos de usuarios
+      shell: samba-tool group addunixattrs "Domain Users" 10000 
+      register: saida
+      failed_when: "saida.rc != 0 and 'is a Unix group' not in saida.stderr" 
+
+# Crea usuarios e grupo de probas a10dani e ponlle como grupo principal o gid de DomainUsers
+
+    - name: Crea o grupo usuarios
+      shell: samba-tool group add usuarios --gid-number=20000 --nis-domain=xilgaro.local
+      register: saida
+      failed_when: "saida.rc != 0 and 'already exists' not in saida.stderr" 
+    - name: Crea o usuario de probas
+      shell: samba-tool user create a10dani abc123. --uid-number=20500 --gid-number=10000 --login-shell=/bin/bash --unix-home=/home/dani 
+      register: saida
+      failed_when: "saida.rc != 0 and 'already exists' not in saida.stderr" 
+    - name: Mete o usuario no grupo usuarios
+      shell: samba-tool group addmembers usuarios a10dani 
+      register: saida
+      failed_when: "saida.rc != 0 and 'already exists' not in saida.stderr" 
+        
+################ INSTALACION DO ROL EN E2-XDC-02
+- hosts: E2XDC02
+  become: yes
+  tasks:
+    - name: reempraza o resolv.conf en E2-XDC-02
+      copy:
+       src: ./E2-XDC-02/orixinal-resolv.conf
+       dest: /etc/resolv.conf
+    - name: Verificacion DNS
+      command:  host -t SRV _ldap._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resutlado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t SRV _kerberos._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t A E2-XDC-01.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+ 
+    - name: Configura kerberos
+      copy:
+        src: ./E2-XDC-02/krb5.conf
+        dest: /etc/krb5.conf
+ 
+    - name: Comprobacion kerberos Ollo vai o password
+      shell: echo 'abc123.' |  kinit administrator
+    - name: Comprobacion klist
+      command: klist 
+      register: klist
+    - name: Lista o resultado de klist
+      debug: var=klist.stdout_lines
+    - name: copia config chrony
+      copy:
+        src: ./E2-XDC-02/chrony.conf 
+        dest: /etc/chrony/chrony.conf
+    - name: renicia chrony
+      systemd:
+        state: restarted
+        name: chrony
+    - name: chequea se xa esta instalado o rol
+      shell: grep -c "server role = active directory domain controller" /etc/samba/smb.conf || true
+      register: test_samba_instalado_E2_XDC_02
+    - name: eliman smb.cof
+      file:
+        path: /etc/samba/smb.conf
+        state: absent     
+      when: test_samba_instalado_E2_XDC_02.stdout == "0"
+    - name: executa samba aprovisionamento
+      command: samba-tool domain join xilgaro.local DC -k yes --option="interfaces=lo eth1" --option="bind interfaces only=yes" --option="dns forwarder=8.8.8.8" --option='idmap_ldb:use rfc2307 = yes'
+      register: provision_E2_XDC_02
+      when: test_samba_instalado_E2_XDC_02.stdout == "0"
+    - name: mostra por pantalla a saida do aprovisionamento
+      debug: var=provision_E2_XDC_02.stderr_lines
+      when: test_samba_instalado_E2_XDC_02.stdout == "0"
+      
+      
+# Rempraza samba
+    - name: copia smb.conf
+      copy:
+        src: ./E2-XDC-02/smb.conf
+        dest: /etc/samba/smb.conf      
+    - name: reempraza o resolv.conf en E2-XDC-02
+      copy:
+        src: ./E2-XDC-02/samba-resolv.conf
+        dest: /etc/resolv.conf
+        
+#### Copia o idmap        
+    - name: reempraza o idmap que antes trouxo dende E2-XDC-01
+      copy:
+        src: ./idmap.ldb.bak
+        dest: /var/lib/samba/private/idmap.ldb
+        owner: root
+        group: root        
+
+    - name: Limpa a cache 
+      shell: net cache flush
+
+# Sincronización de sysvol
+        
+    - name: crea o arquivo coa password de acceso rsync
+      copy: 
+        src: ./E2-XDC-02/rsyncd.secret
+        dest: /etc/samba/rsyncd.secret
+        mode: 0400     
+
+    - name: Testea que a sincronización rync vai
+      shell: rsync --dry-run -XAavz --delete-after --password-file=/etc/samba/rsyncd.secret rsync://sysvol-replication@172.16.1.100/SysVol/ /var/lib/samba/sysvol/
+      register: rsyncsysvol
+    - name: Lista o resultado de rsync
+      debug: var=rsyncsysvol.stdout_lines
+
+    - name: Fai a sincronización rync vai
+      shell: rsync -XAavz --delete-after --password-file=/etc/samba/rsyncd.secret rsync://sysvol-replication@172.16.1.100/SysVol/ /var/lib/samba/sysvol/
+
+    - name: crea a tarefa programada para recplicación
+      cron: 
+        name: "Sincroniza sysvol"
+        minute: "*/5"
+        job: "rsync -XAavz --delete-after --password-file=/etc/samba/rsyncd.secret rsync://sysvol-replication@172.16.1.100/SysVol/ /var/lib/samba/sysvol/"   
+      
+      
+    - name: Resetea as ACL
+      shell: samba-tool ntacl sysvolreset
+    - name: para o servizos
+      systemd:
+        state: stopped
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: desabilita o servizos
+      systemd:
+        enabled: false
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: enmascara  o servizos
+      systemd:
+        masked: true
+        name: "{{ item }}"
+      with_items:
+        - smbd
+        - nmbd
+        - winbind
+    - name: desenmascara o servizo samba-ad-dc
+      systemd:
+        masked: false
+        name: samba-ad-dc
+    - name: habilita o servizos samba-ad-dc
+      systemd:
+        enabled: true
+        name: samba-ad-dc
+
+    - name: reinicia os servizos samba-ad-dc
+      systemd:
+        state: restarted
+        name: samba-ad-dc
+    - name: Accepta peticions winbind
+      copy:
+        src: ./E2-XDC-02/nsswitch.conf
+        dest: /etc
+
+# ldaps
+
+    - name: comproba se xa esta intrudocido o allow dns updates E2-XDC-02
+      shell: grep -c "^allow dns updates = signed" /etc/samba/smb.conf || true
+      register: test_dnsupdates    
+    - name: allow dns updates y ldaps smb.conf
+      lineinfile:
+        dest: /etc/samba/smb.conf
+        line:  "{{ item }}"
+        insertafter: 'dns forwarder'
+      with_items:
+        - 'allow dns updates = signed'
+        - 'tls enabled  = yes'
+        - 'tls keyfile  = tls/key.pem'
+        - 'tls certfile = tls/cert.pem'
+        - 'tls cafile   ='
+      when: test_dnsupdates.stdout == "0"
+      
+    - name: reinicia os servizos samba-ad-dc
+      systemd:
+        state: restarted
+        name: samba-ad-dc
+
+################ TAREFAS COMUNS DE E2-XDC-01 e E2-XDC-02
+- hosts: E2XDC01, E2XDC02
+  become: yes
+  tasks:
+    - name: crea /etc/ldap
+      file:
+        path: /etc/ldap
+        state: directory
+    - name: copia o ldap.conf
+      copy:
+        src: ./E2-XDC-01/ldap.conf
+        dest: /etc/ldap/
+    - name: comproba se xa está no ldap o valor
+      shell: grep -c "^TLS_REQCERT" /etc/ldap/ldap.conf || true
+      register: test_tls_reqcert    
+    - name: engade a liña ao arquivo ldap.conf
+      lineinfile:
+        dest: /etc/ldap/ldap.conf
+        line:  "{{ item }}"
+        insertafter: 'TLS_CACERT'
+      with_items:
+        - 'TLS_REQCERT    never'
+      when: test_tls_reqcert.stdout == "0"
+    - name: Limpa a cache 
+      shell: net cache flush
+    - name: Verificacion DNS
+      command:  host -t SRV _ldap._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resutlado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t SRV _kerberos._tcp.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+
+    - name: Verificacion DNS
+      command:  host -t A E2-XDC-01.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+    - name: Verificacion DNS
+      command:  host -t A E2-XDC-02.xilgaro.local.
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+    - name: Verificacion DNS
+      command:  host -t A xilgaro.local. localhost
+      register: dns
+    - name: mostra por pantalla o resultado dns
+      debug: var=dns.stdout_lines
+
+
+
+      
+    - name: Comprobacion Winbind
+      command: getent passwd administrator
+      register: getent
+    - name: Lista o resultado de getent passwd administrator
+      debug: var=getent.stdout_lines
+        
+    - name: Comprobacion Winbind group 
+      command: getent group "BUILTIN\Users"
+      register: getent
+    - name: Lista o resultado de getent group
+      debug: var=getent.stdout_lines
+
+    - name: Comprobacion Winbind user 
+      command: getent passwd "xilgaro\a10dani"
+      register: getent
+    - name: Lista o resultado de getent passwd
+      debug: var=getent.stdout_lines
+    - name: Comprobacion samba-tool user show 
+      command: samba-tool user show a10dani
+      register: samba_tool
+    - name: Lista o resultado samba-tool user show
+      debug: var=samba_tool.stdout_lines
+
+    - name: Comprobacion id a10dani
+      command: id a10dani
+      register: samba_tool
+    - name: Lista o resultado id a10dani - Debe mostrar que esta e domain users 10000 e usuarios 20000
+      debug: var=samba_tool.stdout_lines
+
+    - name: samba-tool drs showrepl 
+      command: samba-tool drs showrepl
+      register: drs
+    - name: Lista o resultado de samba-tool drs showrepl
+      debug: var=drs.stdout_lines
+      
+
+    - name: ldap compare
+      command: samba-tool ldapcmp ldap://E2-XDC-01 ldap://E2-XDC-02 -U administrator --password=abc123.
+      register: ldapcmp
+      until: "ldapcmp is not failed"
+      retries: 120
+      delay: 15
+    - name: Lista o resultado de samba-tool drs showrepl
+      debug: var=ldapcmp.stdout_lines
+
+      
+      
+
